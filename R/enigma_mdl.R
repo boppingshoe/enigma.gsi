@@ -1,5 +1,8 @@
 
-#' Isotope-genetics BMM model
+#' Isotope-genetics BMM
+#'
+#' @description
+#' Run Bayesian mixture model (i.e., Pella-Madusa model) enhanced with isotope information.
 #'
 #' @param dat_in Input data (as a list object).
 #' @param nreps Total number of iterations (includes burn-ins).
@@ -24,13 +27,13 @@
 #'
 #' @examples
 #' # prep input data
-#' gsi_data <- prep_gsi_data(mixture_data = mix, baseline_data = baseline, pop_info = pops211)
+#' enigma_data <- prep_enigma_data(mixture_data = mix_iso, baseline_data = baseline, pop_info = ayk_pops60)
 #'
 #' # run model
-#' gsi_out <- gsi_mdl(gsi_data, 10, 5, 1, 4)
+#' enigma_out <- enigma_mdl(enigma_data, 20, 10, 1, 3)
 #'
 #' @export
-iso_bmm_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_burn = FALSE, cond_gsi = TRUE, file = NULL, seed = NULL) {
+enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_burn = FALSE, cond_gsi = TRUE, file = NULL, seed = NULL) {
 
   ### ballroom categories ### ----
   categories <- c("Live, Werk, Pose", "Bring It Like Royalty", "Face", "Best Mother", "Best Dressed", "High Class In A Fur Coat", "Snow Ball", "Butch Queen Body", "Weather Girl", "Labels", "Mother-Daughter Realness", "Working Girl", "Linen Vs. Silk", "Perfect Tens", "Modele Effet", "Stone Cold Face", "Realness", "Intergalatic Best Dressed", "House Vs. House", "Femme Queen Vogue", "High Fashion In Feathers", "Femme Queen Runway", "Lofting", "Higher Than Heaven", "Once Upon A Time")
@@ -46,7 +49,7 @@ iso_bmm_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bu
     dplyr::select(ends_with(as.character(0:9))) %>%
     dplyr::select(order(colnames(.))) %>%
     as.matrix() # base
-  
+
   sr_val <- dat_in$x$sr_val
   sr_mean <- dat_in$isoscape$sr_mean
   sr_sd <- dat_in$isoscape$sr_sd
@@ -159,12 +162,12 @@ iso_bmm_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bu
 
   pPrior <- # alpha, hyper-param for p (pop props)
     (1/ table(grps)/ max(grps))[grps]
-  
+
   iso <-
     sapply(sr_val, function(sr) {
       1 / sqrt((2 * pi * sr_sd^2)) * exp(-1 * (sr - sr_mean)^2 / (2 * sr_sd^2))
     }) %>% t()
-  
+
   iso <- tidyr::replace_na(iso, replace = 1)
 
   iden[na_i] <- unlist( lapply(na_i, function(m) {
@@ -180,7 +183,7 @@ iso_bmm_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bu
     ) %dorng% {
 
     p_out <- iden_out <- list()
-  
+
     ## gibbs loop ##
     for (rep in seq(nreps + nadapt)) {
 
@@ -223,7 +226,7 @@ iso_bmm_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bu
     } # end gibbs loop
 
     out_items <- list(p_out, iden_out)
-    
+
     lapply(out_items, function(oi) {
       sapply(oi, rbind) %>%
         t() %>%

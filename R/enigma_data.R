@@ -1,26 +1,33 @@
 
-#' Prepping isotope-genetics BMM model input data
+#' Prepping isotope-genetics BMM input data
 #'
-#' @param mixture_data Mixture data in GCL or *rubias* format.
-#' @param baseline_data Baseline data in GCL or *rubias* format.
+#' @description
+#' Prep input data for Bayesian mixture model (i.e., Pella-Madusa model) enhanced with isotope information.
+#'
+#' @param mixture_data Mixture data in GCL or \pkg{rubias} format.
+#' @param baseline_data Baseline data in GCL or \pkg{rubias} format.
 #' @param pop_info Population information for the baseline. A tibble with columns
 #'   collection (collection names), repunit (reporting unit names),
 #'   grpvec (group numbers), origin (wild/hatchery).
+#' @param isoscape Tibble of isoscape that is consisted of two columns:
+#'  * `sr_mean` - mean Sr readings for each population of the genetic baseline,
+#'  * `sr_sd` - standard deviation for Sr readings for each population of the genetic baseline.
+#'
 #' @param file Where you want to save a copy of input data as a RDS file.
 #'   Need to type out full path and extension `.Rds`.
 #'   Leave it empty if you don't want to save a copy.
 #' @param loci Optional. Provide loci for the mixture or baseline as a fail-safe check.
 #'
-#' @return A list objects as the input data for gsi_mdl()
+#' @return A list objects as the input data for enigma_mdl()
 #'
 #' @importFrom magrittr %>%
 #'
 #' @examples
 #' # prep input data
-#' gsi_data <- prep_gsi_data(mixture_data = mix, baseline_data = baseline, pop_info = pops211)
+#' enigma_data <- prep_enigma_data(mixture_data = mix_iso, baseline_data = baseline, pop_info = ayk_pops60)
 #'
 #' @export
-prep_iso_bmm_data <-
+prep_enigma_data <-
   function(mixture_data, baseline_data, pop_info, isoscape, file = NULL, loci = NULL) {
 
     start_time <- Sys.time()
@@ -65,7 +72,7 @@ prep_iso_bmm_data <-
       dplyr::mutate(dplyr::across(dplyr::ends_with(as.character(0:9)), ~tidyr::replace_na(., 0)))
 
     mix <- allefreq(mixture_data, baseline_data, loci)
-    
+
     mix <- dplyr::bind_cols(mix, select(mixture_data, sr_val))
 
     # numbers of allele types
