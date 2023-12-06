@@ -73,7 +73,7 @@ prep_enigma_data <-
 
     mix <- allefreq(mixture_data, baseline_data, loci)
 
-    mix <- dplyr::bind_cols(mix, select(mixture_data, sr_val))
+    mix <- dplyr::bind_cols(mix, dplyr::select(mixture_data, sr_val))
 
     # numbers of allele types
     nalleles <- lapply(loci, function(loc) {
