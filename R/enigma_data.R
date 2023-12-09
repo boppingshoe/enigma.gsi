@@ -124,6 +124,9 @@ prep_enigma_data <-
       iden <- NULL
     }
 
+    isoscape_ordered <- dplyr::select(base, collection) %>%
+      dplyr::left_join(isoscape, by = "collection")
+
     # output
     iso_dat = list(
       x = mix,
@@ -134,7 +137,7 @@ prep_enigma_data <-
       group_names = grp_nms,
       wildpops = wildpops,
       hatcheries = hatcheries,
-      isoscape = isoscape
+      isoscape = isoscape_ordered
     )
 
     if (!is.null(file)) saveRDS(iso_dat, file = file)
