@@ -50,7 +50,8 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
     dplyr::select(order(colnames(.))) %>%
     as.matrix() # base
 
-  sr_val <- dat_in$x$sr_val
+  sr_val <- dat_in$x$sr_val # indiv Sr ratio
+  # na_sr <- which(is.na(sr_val))
   sr_mean <- dat_in$isoscape$sr_mean
   sr_sd <- dat_in$isoscape$sr_sd
 
@@ -87,8 +88,6 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
   trait_fac <- factor(rep(names(nalleles), nalleles), levels = names(nalleles))
   states <- paste0(paste0(trait_fac, "_"), unlist(lapply(nalleles, seq.int)))
-
-  # alleles <- states[seq.int(sum(nalleles))] # allele types
 
   ### specifications ### ----
   rdirich <- function(alpha0) {
@@ -177,7 +176,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   p <- rdirich(table(iden) + pPrior)
 
   ### parallel chains ### ----
-  `%dorng%` <- doRNG::`%dorng%`
+  # `%dorng%` <- doRNG::`%dorng%`
   out_list <- foreach::foreach(
     ch = chains, .packages = c("magrittr", "tidyr", "dplyr")
     ) %dorng% {
@@ -195,15 +194,26 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
            rowsum(x, iden) %>%
            tidyr::replace_na(0) # colsums for new assignment
 
-        beta_prm <- y + beta + x_sum # posterior q ~ dirich(b')
+         beta_prm <- y + beta + x_sum # posterior q ~ dirich(b')
 
-        t_q <- apply(beta_prm, 1, function(rw) {
+         t_q <- apply(beta_prm, 1, function(rw) {
           unlist(tapply(rw, INDEX = trait_fac, FUN = rdirich))
           })
 
-        freq[na_i, wildpops] <- exp(x[na_i,] %*% log(t_q[, 1:K]))
+         freq[na_i, wildpops] <- exp(x[na_i,] %*% log(t_q[, 1:K]))
 
-        }
+        } # fully Bayes
+
+      # if (length(na_sr) > 0) {
+      #   sr_val[na_sr] <- sapply(na_sr, function(s) {
+      #     rnorm(1, sr_mean[iden[s]], sr_sd[iden[s]])
+      #   })
+      #
+      #   iso[na_sr, ] <-
+      #     sapply(sr_val[na_sr], function(sr) {
+      #       1 / sqrt((2 * pi * sr_sd^2)) * exp(-1 * (sr - sr_mean)^2 / (2 * sr_sd^2))
+      #     }) %>% t()
+      # }
 
       iden[na_i] <- unlist( lapply(na_i, function(m) {
         sample(K, 1, FALSE, iso[m, ] * (p * freq[m, ])[seq.int(K)])
