@@ -52,11 +52,11 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   }
 
   x <- dat_in$x %>%
-    dplyr::select(ends_with(cols2select)) %>%
+    dplyr::select(dplyr::ends_with(cols2select)) %>%
     dplyr::select(order(colnames(.))) %>%
     as.matrix() # mixture
   y <- dat_in$y %>%
-    dplyr::select(ends_with(cols2select)) %>%
+    dplyr::select(dplyr::ends_with(cols2select)) %>%
     dplyr::select(order(colnames(.))) %>%
     as.matrix() # base
 
