@@ -14,7 +14,8 @@ enigma_mdl(
   keep_burn = FALSE,
   cond_gsi = TRUE,
   file = NULL,
-  seed = NULL
+  seed = NULL,
+  family = "normal"
 )
 }
 \arguments{
@@ -38,6 +39,8 @@ running model in fully Bayesian mode.}
 \item{file}{File path to save the output in RDS file. Need to type out the full path and extension \code{.Rds}. Default = NULL for not saving the output.}
 
 \item{seed}{Random seed for reproducibility. Default = NULL (no random seed).}
+
+\item{family}{An option to model the isoscape in normal (Gaussian) or multinomial distribution. Default is "normal".}
 }
 \value{
 A list containing:

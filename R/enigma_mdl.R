@@ -15,6 +15,7 @@
 #' @param cond_gsi Logical (default = TRUE). To run the model in conditional GSI mode.
 #' @param file File path to save the output in RDS file. Need to type out the full path and extension `.Rds`. Default = NULL for not saving the output.
 #' @param seed Random seed for reproducibility. Default = NULL (no random seed).
+#' @param family An option to model the isoscape in normal (Gaussian) or multinomial distribution. Default is "normal".
 #'
 #' @return A list containing:
 #'  - Summary of the estimates
@@ -33,7 +34,7 @@
 #' enigma_out <- enigma_mdl(enigma_data, 20, 10, 1, 3)
 #'
 #' @export
-enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_burn = FALSE, cond_gsi = TRUE, file = NULL, seed = NULL) {
+enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_burn = FALSE, cond_gsi = TRUE, file = NULL, seed = NULL, family = "normal") {
 
   ### ballroom categories ### ----
   categories <- c("Live, Werk, Pose", "Bring It Like Royalty", "Face", "Best Mother", "Best Dressed", "High Class In A Fur Coat", "Snow Ball", "Butch Queen Body", "Weather Girl", "Labels", "Mother-Daughter Realness", "Working Girl", "Linen Vs. Silk", "Perfect Tens", "Modele Effet", "Stone Cold Face", "Realness", "Intergalatic Best Dressed", "House Vs. House", "Femme Queen Vogue", "High Fashion In Feathers", "Femme Queen Runway", "Lofting", "Higher Than Heaven", "Once Upon A Time")
@@ -41,25 +42,35 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   encouragements <- c("I'm proud of ", "keep your ", "be a ", "find strength in ", "worry will never change ", "work for a cause, not for ", "gradtitude turns what we have into ", "good things come to ", "your attitude determines your ", "the only limits in life are ", "find joy in ", "surround yourself with only ", "if oppotunity doesn't knock, build ")
 
   ### data input ### ----
+  nalleles <- dat_in$nalleles # number of allele types
+
+  if (family == "multinomial") {
+    cols2select <- c(as.character(0:9), "]")
+  } else if (family == "normal") {
+    cols2select <- as.character(0:9)
+    nalleles <- nalleles[-length(nalleles)]
+  }
+
   x <- dat_in$x %>%
-    dplyr::select(ends_with(as.character(0:9))) %>%
+    dplyr::select(ends_with(cols2select)) %>%
     dplyr::select(order(colnames(.))) %>%
     as.matrix() # mixture
   y <- dat_in$y %>%
-    dplyr::select(ends_with(as.character(0:9))) %>%
+    dplyr::select(ends_with(cols2select)) %>%
     dplyr::select(order(colnames(.))) %>%
     as.matrix() # base
 
-  sr_val <- dat_in$x$sr_val # indiv Sr ratio
-  # na_sr <- which(is.na(sr_val))
-  sr_mean <- dat_in$isoscape$sr_mean
-  sr_sd <- dat_in$isoscape$sr_sd
+  if (family == "normal") {
+    sr_val <- dat_in$x$sr_val # indiv Sr ratio
+    # na_sr <- which(is.na(sr_val))
+    sr_mean <- dat_in$isoscape$sr_mean
+    sr_sd <- dat_in$isoscape$sr_sd
+  }
 
   if (is.null(dat_in$iden)) {
     iden <- rep(NA, nrow(x))
   } else iden <- dat_in$iden # iden info
 
-  nalleles <- dat_in$nalleles # number of allele types
   grps <- dat_in$groups # vector id for reporting groups (aka groupvec)
   grp_names <- dat_in$group_names # reporting groups
 
@@ -87,7 +98,6 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   iden <- factor(iden, levels = seq(K + H))
 
   trait_fac <- factor(rep(names(nalleles), nalleles), levels = names(nalleles))
-  states <- paste0(paste0(trait_fac, "_"), unlist(lapply(nalleles, seq.int)))
 
   ### specifications ### ----
   rdirich <- function(alpha0) {
@@ -162,12 +172,14 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   pPrior <- # alpha, hyper-param for p (pop props)
     (1/ table(grps)/ max(grps))[grps]
 
-  iso <-
-    sapply(sr_val, function(sr) {
-      1 / sqrt((2 * pi * sr_sd^2)) * exp(-1 * (sr - sr_mean)^2 / (2 * sr_sd^2))
-    }) %>% t()
+  if (family == "normal") {
+    iso <-
+      sapply(sr_val, function(sr) {
+        1 / sqrt((2 * pi * sr_sd^2)) * exp(-1 * (sr - sr_mean)^2 / (2 * sr_sd^2))
+      }) %>% t()
 
-  iso <- tidyr::replace_na(iso, replace = 1)
+    iso <- tidyr::replace_na(iso, replace = 1)
+  } else iso <- matrix(1, nrow = nrow(x))
 
   iden[na_i] <- unlist( lapply(na_i, function(m) {
     sample(K, 1, FALSE, iso[m, ] * (pPrior * freq[m, ])[seq.int(K)])

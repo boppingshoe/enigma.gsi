@@ -2,13 +2,14 @@
 % Please edit documentation in R/enigma_data.R
 \name{prep_enigma_data}
 \alias{prep_enigma_data}
-\title{Prepping isotope-genetics BMM input data}
+\title{Prepping isotope-genetics BMM input data2}
 \usage{
 prep_enigma_data(
   mixture_data,
   baseline_data,
   pop_info,
-  isoscape,
+  isobreaks = 5,
+  isoscape = NULL,
   file = NULL,
   loci = NULL
 )
@@ -22,8 +23,11 @@ prep_enigma_data(
 collection (collection names), repunit (reporting unit names),
 grpvec (group numbers), origin (wild/hatchery).}
 
-\item{isoscape}{Tibble of isoscape that is consisted of two columns:
+\item{isobreaks}{Indicate where to cut and put isoscape values into bins, or how many bins the isoscape values should be grouped. Recommend manually set where to cut.}
+
+\item{isoscape}{Option to provide isoscape if there are no isotope values (\code{sr_val}) for the baseline. Isoscape is a tibble with three columns:
 \itemize{
+\item \code{collection} - collection names,
 \item \code{sr_mean} - mean Sr readings for each population of the genetic baseline,
 \item \code{sr_sd} - standard deviation for Sr readings for each population of the genetic baseline.
 }}

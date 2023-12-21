@@ -1,5 +1,5 @@
 
-#' Prepping isotope-genetics BMM input data
+#' Prepping isotope-genetics BMM input data2
 #'
 #' @description
 #' Prep input data for Bayesian mixture model (i.e., Pella-Madusa model) enhanced with isotope information.
@@ -9,10 +9,11 @@
 #' @param pop_info Population information for the baseline. A tibble with columns
 #'   collection (collection names), repunit (reporting unit names),
 #'   grpvec (group numbers), origin (wild/hatchery).
-#' @param isoscape Tibble of isoscape that is consisted of two columns:
+#' @param isobreaks Indicate where to cut and put isoscape values into bins, or how many bins the isoscape values should be grouped. Recommend manually set where to cut.
+#' @param isoscape Option to provide isoscape if there are no isotope values (`sr_val`) for the baseline. Isoscape is a tibble with three columns:
+#'  * `collection` - collection names,
 #'  * `sr_mean` - mean Sr readings for each population of the genetic baseline,
 #'  * `sr_sd` - standard deviation for Sr readings for each population of the genetic baseline.
-#'
 #' @param file Where you want to save a copy of input data as a RDS file.
 #'   Need to type out full path and extension `.Rds`.
 #'   Leave it empty if you don't want to save a copy.
@@ -28,7 +29,7 @@
 #'
 #' @export
 prep_enigma_data <-
-  function(mixture_data, baseline_data, pop_info, isoscape, file = NULL, loci = NULL) {
+  function(mixture_data, baseline_data, pop_info, isobreaks = 5, isoscape = NULL, file = NULL, loci = NULL) {
 
     start_time <- Sys.time()
 
@@ -65,15 +66,51 @@ prep_enigma_data <-
     if ("SillySource" %in% names(mixture_data))
       mixture_data <- dplyr::rename(mixture_data, indiv = SillySource)
 
+    if(!any(grepl("sr_val", names(baseline_data)))) {
+      if(is.null(isoscape)) stop("Need to provide isoscape or have sr_val in baseline.")
+
+      baseline_data <- baseline_data %>%
+        dplyr::mutate(
+          iden = {sapply(collection, function(i) which(i == isoscape$collection))},
+          sr_val = {sapply(iden, function(i) rnorm(1, isoscape$sr_mean[i], isoscape$sr_sd[i]))}
+        )
+    }
+
     # tally allele for each baseline and mixture sample
     base <- allefreq(baseline_data, baseline_data, loci, collect_by = collection) %>%
       dplyr::right_join(pop_info, by = c("collection" = "collection"), keep = FALSE) %>%
       dplyr::relocate(!dplyr::ends_with(as.character(0:9)), .after = collection) %>%
-      dplyr::mutate(dplyr::across(dplyr::ends_with(as.character(0:9)), ~tidyr::replace_na(., 0)))
+      dplyr::mutate(dplyr::across(dplyr::ends_with(as.character(0:9)), ~tidyr::replace_na(., 0))) %>%
+      dplyr::left_join({
+        dplyr::select(baseline_data, collection, sr_val) %>%
+          dplyr::mutate(sr_bin = cut(sr_val, breaks = isobreaks)) %>%
+          with(., table(collection, sr_bin)) %>%
+          tibble::as_tibble() %>%
+          tidyr::pivot_wider(names_from = "sr_bin", values_from = "n")
+      }, by = "collection")
+
+    if (is.null(isoscape)) {
+      isoscape <-
+        dplyr::select(baseline_data, collection, sr_val) %>%
+        dplyr::group_by(collection) %>%
+        dplyr::summarise(sr_mean = mean(sr_val),
+                         sr_sd = sd(sr_val))
+    }
+
+    isoscape_ordered <- dplyr::select(base, collection) %>%
+      dplyr::left_join(isoscape, by = "collection")
 
     mix <- allefreq(mixture_data, baseline_data, loci)
 
-    mix <- dplyr::bind_cols(mix, dplyr::select(mixture_data, sr_val))
+    mix <- mix %>%
+      dplyr::bind_cols(dplyr::select(mixture_data, sr_val)) %>%
+      dplyr::left_join({
+        dplyr::select(mixture_data, indiv, sr_val) %>%
+          dplyr::mutate(sr_bin = cut(sr_val, breaks = isobreaks)) %>%
+          with(., table(indiv, sr_bin)) %>%
+          tibble::as_tibble() %>%
+          tidyr::pivot_wider(names_from = "sr_bin", values_from = "n")
+      }, by = "indiv")
 
     # numbers of allele types
     nalleles <- lapply(loci, function(loc) {
@@ -89,6 +126,8 @@ prep_enigma_data <-
     n_alleles <- nalleles %>%
       dplyr::pull(n_allele) %>%
       stats::setNames(nalleles$locus)
+
+    n_alleles["isoscape"] <- length(isobreaks) - 1
 
     # group names
     grp_nms <- base %>%
@@ -123,9 +162,6 @@ prep_enigma_data <-
     } else {
       iden <- NULL
     }
-
-    isoscape_ordered <- dplyr::select(base, collection) %>%
-      dplyr::left_join(isoscape, by = "collection")
 
     # output
     iso_dat = list(
