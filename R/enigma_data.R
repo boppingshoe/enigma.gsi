@@ -1,11 +1,11 @@
 
-#' Prepping isotope-genetics BMM input data2
+#' Prepping isotope-genetics BMM input data
 #'
 #' @description
 #' Prep input data for Bayesian mixture model (i.e., Pella-Madusa model) enhanced with isotope information.
 #'
-#' @param mixture_data Mixture data in GCL or \pkg{rubias} format.
-#' @param baseline_data Baseline data in GCL or \pkg{rubias} format.
+#' @param mixture_data Mixture data in GCL or \pkg{rubias} format with an additional column `sr_val` to specify isotope values if available.
+#' @param baseline_data Baseline data in GCL or \pkg{rubias} format. It's optional to include a column `sr_val` for isotope values. Isotope value can be specified as a separate object `isoscape` (see below).
 #' @param pop_info Population information for the baseline. A tibble with columns
 #'   collection (collection names), repunit (reporting unit names),
 #'   grpvec (group numbers), origin (wild/hatchery).
