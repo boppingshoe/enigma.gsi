@@ -2,7 +2,7 @@
 % Please edit documentation in R/enigma_data.R
 \name{prep_enigma_data}
 \alias{prep_enigma_data}
-\title{Prepping isotope-genetics BMM input data2}
+\title{Prepping isotope-genetics BMM input data}
 \usage{
 prep_enigma_data(
   mixture_data,
@@ -15,9 +15,9 @@ prep_enigma_data(
 )
 }
 \arguments{
-\item{mixture_data}{Mixture data in GCL or \pkg{rubias} format.}
+\item{mixture_data}{Mixture data in GCL or \pkg{rubias} format with an additional column \code{sr_val} to specify isotope values if available.}
 
-\item{baseline_data}{Baseline data in GCL or \pkg{rubias} format.}
+\item{baseline_data}{Baseline data in GCL or \pkg{rubias} format. It's optional to include a column \code{sr_val} for isotope values. Isotope value can be specified as a separate object \code{isoscape} (see below).}
 
 \item{pop_info}{Population information for the baseline. A tibble with columns
 collection (collection names), repunit (reporting unit names),

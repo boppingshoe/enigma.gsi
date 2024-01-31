@@ -2,6 +2,7 @@
 
 export(enigma_mdl)
 export(prep_enigma_data)
+export(prep_ichthy_data)
 importFrom(doRNG,"%dorng%")
 importFrom(foreach,"%dopar%")
 importFrom(magrittr,"%>%")
