@@ -67,7 +67,10 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
     sr_sd <- dat_in$isoscape$sr_sd
   }
 
-  if (family == "ichthy") ich <- dat_in$ichthy_status$ich
+  if (family == "ichthy") {
+    ich <- dat_in$ichthy_status$ich
+    na_ic <- which(is.na(ich))
+  }
 
   if (is.null(dat_in$iden)) {
     iden <- rep(NA, nrow(x))
@@ -97,7 +100,6 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
   na_i <- which(is.na(iden))
 
-  na_ic <- which(is.na(ich))
 
   iden <- factor(iden, levels = seq(K + H))
 
