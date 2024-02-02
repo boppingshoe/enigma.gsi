@@ -44,13 +44,11 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   ### data input ### ----
   nalleles <- dat_in$nalleles # number of allele types
 
-  if (family == "multinomial") {
-    cols2select <- c(as.character(0:9), "]")
-  } else if (family == "normal") {
+  if (family == "normal") {
     cols2select <- as.character(0:9)
     nalleles <- nalleles[-length(nalleles)]
-  } else if (family == "ichthy") {
-    cols2select <- as.character(0:9)
+  } else {
+    cols2select <- c(as.character(0:9), "]")
   }
 
   x <- dat_in$x %>%
@@ -68,6 +66,8 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
     sr_mean <- dat_in$isoscape$sr_mean
     sr_sd <- dat_in$isoscape$sr_sd
   }
+
+  if (family == "ichthy") ich <- dat_in$ichthy_status$ich
 
   if (is.null(dat_in$iden)) {
     iden <- rep(NA, nrow(x))
@@ -96,6 +96,8 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   if (any(iden > (K + H) | iden > length(grps), na.rm = TRUE)) stop("Unidentified populations in `iden`. Maybe there are hatcheries in the data that are not listed in the reporting groups?")
 
   na_i <- which(is.na(iden))
+
+  na_ic <- which(is.na(ich))
 
   iden <- factor(iden, levels = seq(K + H))
 
@@ -179,15 +181,23 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
       sapply(sr_val, function(sr) {
         1 / sqrt((2 * pi * sr_sd^2)) * exp(-1 * (sr - sr_mean)^2 / (2 * sr_sd^2))
       }) %>% t()
-
     iso <- tidyr::replace_na(iso, replace = 1)
-  } else iso <- matrix(1, nrow = nrow(x))
+  } else if (family == "ichthy") {
+    theta_prior <- rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
+    g <- sapply(ich, function(i) theta_prior^i * (1 - theta_prior)^(1 - i)) %>% t()
+    g <- tidyr::replace_na(g, replace = 1)
+    iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
+  } else iso <- matrix(1, nrow = nrow(x)) # for family = multinomial
 
   iden[na_i] <- unlist( lapply(na_i, function(m) {
     sample(K, 1, FALSE, iso[m, ] * (pPrior * freq[m, ])[seq.int(K)])
   }))
 
-  p <- rdirich(table(iden) + pPrior)
+  if (family == "ichthy") {
+    ich[na_ic] <- unlist( lapply(na_ic, function(m) {
+      rbinom(1, 1, theta_prior[grps[iden[m]]])
+    }))
+  }
 
   ### parallel chains ### ----
   # `%dorng%` <- doRNG::`%dorng%`
@@ -195,7 +205,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
     ch = chains, .packages = c("magrittr", "tidyr", "dplyr")
     ) %dorng% {
 
-    p_out <- iden_out <- list()
+    p_out <- iden_out <- theta_out <- list()
 
     ## gibbs loop ##
     for (rep in seq(nreps + nadapt)) {
@@ -229,11 +239,24 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
       #     }) %>% t()
       # }
 
+      if (family == "ichthy") {
+        theta <- apply(rowsum(table(iden, ich), grps), 1,
+                       function(i) rbeta(1, i[2] + 1, i[1] + 1))
+        g <- sapply(ich, function(i) theta^i * (1 - theta)^(1 - i)) %>% t()
+        iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
+      }
+
+      p <- rdirich(table(iden) + pPrior)
+
       iden[na_i] <- unlist( lapply(na_i, function(m) {
         sample(K, 1, FALSE, iso[m, ] * (p * freq[m, ])[seq.int(K)])
       }))
 
-      p <- rdirich(table(iden) + pPrior)
+      if (family == "ichthy") {
+        ich[na_ic] <- unlist( lapply(na_ic, function(m) {
+          rbinom(1, 1, theta[grps[iden[m]]])
+        }))
+      }
 
       # record output based on keep or not keep burn-ins
       if (rep > nadapt) { # after adaptation stage
@@ -242,6 +265,8 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
           it <- (rep - nadapt - n_burn) / thin
           p_out[[it]] <- c(p, it, ch)
 
+          if (family == "ichthy") theta_out[[it]] <- theta
+
           iden_out[[it]] <- iden
 
         } # if rep > nburn & (rep-nburn) %% thin == 0
@@ -249,7 +274,9 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
     } # end gibbs loop
 
-    out_items <- list(p_out, iden_out)
+    if (family == "ichthy") {
+      out_items <- list(p_out, iden_out, theta_out)
+    } else out_items <- list(p_out, iden_out)
 
     lapply(out_items, function(oi) {
       sapply(oi, rbind) %>%
@@ -265,6 +292,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
   out_list1 <- lapply(out_list, function(ol) ol[[1]])
 
+  #### group props ----
   p_combo <-
     lapply(out_list1,
            function(ol) ol %>%
@@ -317,9 +345,55 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
     dplyr::arrange(grp_fac) %>%
     dplyr::select(-grp_fac)
 
-  print(Sys.time() - run_time)
-  message(Sys.time())
+  #### ichthyphonus ----
+  if (family == "ichthy") {
+    out_list3 <- lapply(out_list, function(ol) ol[[3]])
 
+    theta_combo <-
+      lapply(out_list3,
+             function(ol) {
+               colnames(ol) <- grp_names
+               return(as.data.frame(ol))
+             })
+
+    mc_theta <- coda::as.mcmc.list(
+      lapply(theta_combo,
+             function(rlist) coda::mcmc(rlist[keep_list,])))
+
+    summ_theta <-
+      lapply(theta_combo, function(rlist) rlist[keep_list,]) %>%
+      dplyr::bind_rows() %>%
+      tidyr::pivot_longer(cols = 1:ncol(.), names_to = "group") %>%
+      dplyr::group_by(group) %>%
+      dplyr::summarise(
+        mean = mean(value),
+        median = stats::median(value),
+        sd = stats::sd(value),
+        ci.05 = stats::quantile(value, 0.05),
+        ci.95 = stats::quantile(value, 0.95),
+        .groups = "drop"
+      ) %>%
+      dplyr::mutate(
+        GR = {if (nchains > 1) {
+          coda::gelman.diag(mc_theta,
+                            transform = FALSE,
+                            autoburnin = FALSE,
+                            multivariate = FALSE)$psrf[, "Point est."]
+        } else {NA}},
+        mpsrf = {if (nchains > 1) {
+          my.gelman.diag(mc_theta,
+                         # transform = FALSE,
+                         # autoburnin = FALSE,
+                         multivariate = TRUE)$mpsrf
+        } else {NA}},
+        n_eff = coda::effectiveSize(mc_theta)
+      ) %>%
+      dplyr::mutate(grp_fac = factor(group, levels = grp_names)) %>%
+      dplyr::arrange(grp_fac) %>%
+      dplyr::select(-grp_fac)
+  }
+
+  # combine output
   out <- list()
 
   out$summ <- summ_pop
@@ -336,6 +410,22 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   out$idens <-
     lapply(out_list, function(ol) ol[[2]]) %>%
     dplyr::bind_rows()
+
+  if (family == "ichthy") {
+    out$summ_ich <- summ_theta
+
+    out$trace_ich <- theta_combo %>%
+      dplyr::bind_rows() %>%
+      dplyr::mutate(
+        itr = rep(1:((nreps - nburn * isFALSE(keep_burn)) / thin),
+                  times = nchains),
+        chain = rep(1:nchains,
+                    each = (nreps - nburn * isFALSE(keep_burn)) / thin)
+      )
+  }
+
+  print(Sys.time() - run_time)
+  message(Sys.time())
 
   if(!is.null(file)) saveRDS(out, file = file)
 
