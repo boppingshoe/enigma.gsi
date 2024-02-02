@@ -40,7 +40,7 @@ running model in fully Bayesian mode.}
 
 \item{seed}{Random seed for reproducibility. Default = NULL (no random seed).}
 
-\item{family}{An option to model the isoscape in normal (Gaussian) or multinomial distribution. Default is "normal".}
+\item{family}{An option to model the isoscape in normal (Gaussian) or multinomial distribution. Default is "normal". Identify here "ichthy" to run model with ichthyphonus.}
 }
 \value{
 A list containing:
