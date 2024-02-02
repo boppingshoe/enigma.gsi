@@ -15,7 +15,7 @@
 #' @param cond_gsi Logical (default = TRUE). To run the model in conditional GSI mode.
 #' @param file File path to save the output in RDS file. Need to type out the full path and extension `.Rds`. Default = NULL for not saving the output.
 #' @param seed Random seed for reproducibility. Default = NULL (no random seed).
-#' @param family An option to model the isoscape in normal (Gaussian) or multinomial distribution. Default is "normal".
+#' @param family An option to model the isoscape in normal (Gaussian) or multinomial distribution. Default is "normal". Identify here "ichthy" to run model with ichthyphonus.
 #'
 #' @return A list containing:
 #'  - Summary of the estimates
@@ -49,6 +49,8 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   } else if (family == "normal") {
     cols2select <- as.character(0:9)
     nalleles <- nalleles[-length(nalleles)]
+  } else if (family == "ichthy") {
+    cols2select <- as.character(0:9)
   }
 
   x <- dat_in$x %>%
