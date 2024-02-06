@@ -45,7 +45,9 @@ A list objects as the input data for enigma_mdl()
 Prep input data for Bayesian mixture model (i.e., Pella-Madusa model) enhanced with isotope information.
 }
 \examples{
+\dontrun{
 # prep input data
 enigma_data <- prep_enigma_data(mixture_data = mix_iso, baseline_data = baseline, pop_info = ayk_pops60)
+}
 
 }

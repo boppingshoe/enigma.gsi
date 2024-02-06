@@ -54,10 +54,12 @@ A list containing:
 Run Bayesian mixture model (i.e., Pella-Madusa model) enhanced with isotope information.
 }
 \examples{
+\dontrun{
 # prep input data
 enigma_data <- prep_enigma_data(mixture_data = mix_iso, baseline_data = baseline, pop_info = ayk_pops60)
 
 # run model
 enigma_out <- enigma_mdl(enigma_data, 20, 10, 1, 3)
+}
 
 }

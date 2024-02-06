@@ -27,11 +27,13 @@
 #' @importFrom foreach %dopar%
 #'
 #' @examples
+#' \dontrun{
 #' # prep input data
 #' enigma_data <- prep_enigma_data(mixture_data = mix_iso, baseline_data = baseline, pop_info = ayk_pops60)
 #'
 #' # run model
 #' enigma_out <- enigma_mdl(enigma_data, 20, 10, 1, 3)
+#' }
 #'
 #' @export
 enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_burn = FALSE, cond_gsi = TRUE, file = NULL, seed = NULL, family = "normal") {
@@ -100,7 +102,6 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   if (any(iden > (K + H) | iden > length(grps), na.rm = TRUE)) stop("Unidentified populations in `iden`. Maybe there are hatcheries in the data that are not listed in the reporting groups?")
 
   na_i <- which(is.na(iden))
-
 
   iden <- factor(iden, levels = seq(K + H))
 
@@ -186,7 +187,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   #     }) %>% t()
   #   iso <- tidyr::replace_na(iso, replace = 1)
   # } else if (family == "ichthy") {
-  #   theta_prior <- rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
+  #   theta_prior <- stats::rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
   #   g <- sapply(ich, function(i) theta_prior^i * (1 - theta_prior)^(1 - i)) %>% t()
   #   g <- tidyr::replace_na(g, replace = 1)
   #   iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
@@ -199,7 +200,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
     iso <- tidyr::replace_na(iso, replace = 1)
   } else if (family == "ichthy") {
     theta_prior <- lapply(seq.int(max(stra)), function(s) {
-      rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
+      stats::rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
     })
     g <- sapply(seq.int(length(ich)), function(i) theta_prior[[stra[i]]]^ich[i] * (1 - theta_prior[[stra[i]]])^(1 - ich[i])) %>% t()
     g <- tidyr::replace_na(g, replace = 1)
@@ -212,8 +213,8 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
   if (family == "ichthy") {
     ich[na_ic] <- unlist( lapply(na_ic, function(m) {
-      # rbinom(1, 1, theta_prior[grps[iden[m]]])
-      rbinom(1, 1, theta_prior[[stra[m]]][grps[iden[m]]])
+      # stats::rbinom(1, 1, theta_prior[grps[iden[m]]])
+      stats::rbinom(1, 1, theta_prior[[stra[m]]][grps[iden[m]]])
     }) )
   }
 
@@ -248,7 +249,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
       # if (length(na_sr) > 0) {
       #   sr_val[na_sr] <- sapply(na_sr, function(s) {
-      #     rnorm(1, sr_mean[iden[s]], sr_sd[iden[s]])
+      #     stats::rnorm(1, sr_mean[iden[s]], sr_sd[iden[s]])
       #   })
       #
       #   iso[na_sr, ] <-
@@ -259,7 +260,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
       # if (family == "ichthy") {
       #   theta <- apply(rowsum(table(iden, ich), grps), 1,
-      #                  function(i) rbeta(1, i[2] + 1, i[1] + 1))
+      #                  function(i) stats::rbeta(1, i[2] + 1, i[1] + 1))
       #   g <- sapply(ich, function(i) theta^i * (1 - theta)^(1 - i)) %>% t()
       #   iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
       # }
@@ -268,7 +269,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
                          function(tbl_s) rowsum(tbl_s, grps),
                          simplify = FALSE)
         theta <- lapply(ich_tbl, function(ic) {
-          apply(ic, 1, function(i) rbeta(1, i[2] + 1, i[1] + 1))
+          apply(ic, 1, function(i) stats::rbeta(1, i[2] + 1, i[1] + 1))
         })
         g <- sapply(seq.int(length(ich)),
                     function(i) theta[[stra[i]]]^ich[i] * (1 - theta[[stra[i]]])^(1 - ich[i])) %>% t()
@@ -283,8 +284,8 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
       if (family == "ichthy") {
         ich[na_ic] <- unlist( lapply(na_ic, function(m) {
-          # rbinom(1, 1, theta[grps[iden[m]]])
-          rbinom(1, 1, theta[[stra[m]]][grps[iden[m]]])
+          # stats::rbinom(1, 1, theta[grps[iden[m]]])
+          stats::rbinom(1, 1, theta[[stra[m]]][grps[iden[m]]])
         }) )
       }
 
@@ -314,10 +315,10 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
         list(
           sapply(p_out, rbind) %>%
             t() %>%
-            dplyr::as_tibble(),
+            data.table::as.data.table(),
           sapply(iden_out, rbind) %>%
             t() %>%
-            dplyr::as_tibble(),
+            data.table::as.data.table(),
           lapply(theta_out, function(t1_out) {
             sapply(t1_out, function(t2_out) {
               sapply(t2_out, rbind)
@@ -614,7 +615,7 @@ my.gelman.diag <- function(x, confidence = 0.95, multivariate = TRUE) {
 }
 
 
-utils::globalVariables(c(".", "ch", "chain", "itr", "name", "name_fac", "value"))
+utils::globalVariables(c(".", "ch", "chain", "itr", "name", "name_fac", "value", "group", "grp_fac", "qf"))
 
 
 

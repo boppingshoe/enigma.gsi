@@ -41,7 +41,9 @@ A list objects as the input data for enigma_mdl()
 Prep input data for Bayesian mixture model (i.e., Pella-Madusa model) integrated with ithchyphonus information.
 }
 \examples{
+\dontrun{
 # prep input data
 ichthy_data <- prep_ichthy_data(mixture_data = mix, baseline_data = baseline, pop_info = ayk_pops60, ichthy_status = ichthy)
+}
 
 }

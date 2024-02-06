@@ -13,15 +13,19 @@ RoxygenNote: 7.2.3
 URL: https://github.com/boppingshoe/enigma.gsi
 BugReports: https://github.com/boppingshoe/enigma.gsi/issues
 Imports: 
+    abind,
     coda,
     doParallel,
     doRNG,
     dplyr,
     foreach,
+    ggplot2,
     magrittr,
     parallel,
+    readr,
     stats,
     stringr,
     tibble,
+    tidyfst,
     tidyr,
-    data.table
+	data.table

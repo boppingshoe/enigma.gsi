@@ -24,8 +24,10 @@
 #' @importFrom magrittr %>%
 #'
 #' @examples
+#' \dontrun{
 #' # prep input data
 #' enigma_data <- prep_enigma_data(mixture_data = mix_iso, baseline_data = baseline, pop_info = ayk_pops60)
+#' }
 #'
 #' @export
 prep_enigma_data <-
@@ -72,7 +74,7 @@ prep_enigma_data <-
       baseline_data <- baseline_data %>%
         dplyr::mutate(
           iden = {sapply(collection, function(i) which(i == isoscape$collection))},
-          sr_val = {sapply(iden, function(i) rnorm(1, isoscape$sr_mean[i], isoscape$sr_sd[i]))}
+          sr_val = {sapply(iden, function(i) stats::rnorm(1, isoscape$sr_mean[i], isoscape$sr_sd[i]))}
         )
     }
 
@@ -208,8 +210,10 @@ prep_enigma_data <-
 #' @importFrom magrittr %>%
 #'
 #' @examples
+#' \dontrun{
 #' # prep input data
 #' ichthy_data <- prep_ichthy_data(mixture_data = mix, baseline_data = baseline, pop_info = ayk_pops60, ichthy_status = ichthy)
+#' }
 #'
 #' @export
 prep_ichthy_data <-
@@ -421,7 +425,7 @@ check_loci_pops <- function(loci_provided, loci_base, loci_mix) {
 
 
 utils::globalVariables(c(".", "SILLY_CODE", "SillySource", "altyp", "collection",
-                         "grpvec", "indiv", "locus", "n", "n_allele", "origin", "repunit"))
+                         "grpvec", "indiv", "locus", "n", "n_allele", "origin", "repunit", "sr_val", "sd"))
 
 
 
