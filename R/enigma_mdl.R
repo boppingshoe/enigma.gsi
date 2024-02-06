@@ -137,8 +137,8 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   beta <- # actually beta and gamma
     matrix(0,
            nrow = nrow(y),
-           ncol = ncol(y))#,
-           # dimnames = dimnames(y))
+           ncol = ncol(y))
+
   beta[1:K, ] <-
     matrix(
       rep(1 / nalleles, nalleles),
@@ -180,31 +180,21 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   pPrior <- # alpha, hyper-param for p (pop props)
     (1/ table(grps)/ max(grps))[grps]
 
-  # if (family == "normal") {
-  #   iso <-
-  #     sapply(sr_val, function(sr) {
-  #       1 / sqrt((2 * pi * sr_sd^2)) * exp(-1 * (sr - sr_mean)^2 / (2 * sr_sd^2))
-  #     }) %>% t()
-  #   iso <- tidyr::replace_na(iso, replace = 1)
-  # } else if (family == "ichthy") {
-  #   theta_prior <- stats::rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
-  #   g <- sapply(ich, function(i) theta_prior^i * (1 - theta_prior)^(1 - i)) %>% t()
-  #   g <- tidyr::replace_na(g, replace = 1)
-  #   iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
-  # } else iso <- matrix(1, nrow = nrow(x)) # for family = multinomial
   if (family == "normal") {
     iso <-
       sapply(sr_val, function(sr) {
         1 / sqrt((2 * pi * sr_sd^2)) * exp(-1 * (sr - sr_mean)^2 / (2 * sr_sd^2))
       }) %>% t()
     iso <- tidyr::replace_na(iso, replace = 1)
+
   } else if (family == "ichthy") {
     theta_prior <- lapply(seq.int(max(stra)), function(s) {
       stats::rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
     })
     g <- sapply(seq.int(length(ich)), function(i) theta_prior[[stra[i]]]^ich[i] * (1 - theta_prior[[stra[i]]])^(1 - ich[i])) %>% t()
-    g <- tidyr::replace_na(g, replace = 1)
+    g <- tidyr::replace_na(g, replace = 1) # only works when whole row is NA
     iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
+
   } else iso <- matrix(1, nrow = nrow(x)) # for family = multinomial
 
   iden[na_i] <- unlist( lapply(na_i, function(m) {
@@ -213,7 +203,6 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
   if (family == "ichthy") {
     ich[na_ic] <- unlist( lapply(na_ic, function(m) {
-      # stats::rbinom(1, 1, theta_prior[grps[iden[m]]])
       stats::rbinom(1, 1, theta_prior[[stra[m]]][grps[iden[m]]])
     }) )
   }
@@ -247,6 +236,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
         } # fully Bayes
 
+      # impute missing isotope values for individuals
       # if (length(na_sr) > 0) {
       #   sr_val[na_sr] <- sapply(na_sr, function(s) {
       #     stats::rnorm(1, sr_mean[iden[s]], sr_sd[iden[s]])
@@ -258,12 +248,6 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
       #     }) %>% t()
       # }
 
-      # if (family == "ichthy") {
-      #   theta <- apply(rowsum(table(iden, ich), grps), 1,
-      #                  function(i) stats::rbeta(1, i[2] + 1, i[1] + 1))
-      #   g <- sapply(ich, function(i) theta^i * (1 - theta)^(1 - i)) %>% t()
-      #   iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
-      # }
       if (family == "ichthy") {
         ich_tbl <- apply(table(iden, ich, stra), 3,
                          function(tbl_s) rowsum(tbl_s, grps),
@@ -271,8 +255,9 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
         theta <- lapply(ich_tbl, function(ic) {
           apply(ic, 1, function(i) stats::rbeta(1, i[2] + 1, i[1] + 1))
         })
-        g <- sapply(seq.int(length(ich)),
-                    function(i) theta[[stra[i]]]^ich[i] * (1 - theta[[stra[i]]])^(1 - ich[i])) %>% t()
+        g <- sapply(seq.int(length(ich)), function(i) {
+          theta[[stra[i]]]^ich[i] * (1 - theta[[stra[i]]])^(1 - ich[i])
+          }) %>% t()
         iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
       }
 
@@ -280,11 +265,10 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
       iden[na_i] <- unlist( lapply(na_i, function(m) {
         sample(K, 1, FALSE, iso[m, ] * (p * freq[m, ])[seq.int(K)])
-      }))
+      }) )
 
       if (family == "ichthy") {
         ich[na_ic] <- unlist( lapply(na_ic, function(m) {
-          # stats::rbinom(1, 1, theta[grps[iden[m]]])
           stats::rbinom(1, 1, theta[[stra[m]]][grps[iden[m]]])
         }) )
       }
