@@ -70,6 +70,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   if (family == "ichthy") {
     ich <- dat_in$ichthy_status$ich
     na_ic <- which(is.na(ich))
+    stra <- dat_in$ichthy_status$stratum
   }
 
   if (is.null(dat_in$iden)) {
@@ -178,6 +179,18 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   pPrior <- # alpha, hyper-param for p (pop props)
     (1/ table(grps)/ max(grps))[grps]
 
+  # if (family == "normal") {
+  #   iso <-
+  #     sapply(sr_val, function(sr) {
+  #       1 / sqrt((2 * pi * sr_sd^2)) * exp(-1 * (sr - sr_mean)^2 / (2 * sr_sd^2))
+  #     }) %>% t()
+  #   iso <- tidyr::replace_na(iso, replace = 1)
+  # } else if (family == "ichthy") {
+  #   theta_prior <- rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
+  #   g <- sapply(ich, function(i) theta_prior^i * (1 - theta_prior)^(1 - i)) %>% t()
+  #   g <- tidyr::replace_na(g, replace = 1)
+  #   iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
+  # } else iso <- matrix(1, nrow = nrow(x)) # for family = multinomial
   if (family == "normal") {
     iso <-
       sapply(sr_val, function(sr) {
@@ -185,8 +198,10 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
       }) %>% t()
     iso <- tidyr::replace_na(iso, replace = 1)
   } else if (family == "ichthy") {
-    theta_prior <- rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
-    g <- sapply(ich, function(i) theta_prior^i * (1 - theta_prior)^(1 - i)) %>% t()
+    theta_prior <- lapply(seq.int(max(stra)), function(s) {
+      rbeta(max(grps), 1, 1) # or runif(max(grps, 0, 1))
+    })
+    g <- sapply(seq.int(length(ich)), function(i) theta_prior[[stra[i]]]^ich[i] * (1 - theta_prior[[stra[i]]])^(1 - ich[i])) %>% t()
     g <- tidyr::replace_na(g, replace = 1)
     iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
   } else iso <- matrix(1, nrow = nrow(x)) # for family = multinomial
@@ -197,8 +212,9 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
   if (family == "ichthy") {
     ich[na_ic] <- unlist( lapply(na_ic, function(m) {
-      rbinom(1, 1, theta_prior[grps[iden[m]]])
-    }))
+      # rbinom(1, 1, theta_prior[grps[iden[m]]])
+      rbinom(1, 1, theta_prior[[stra[m]]][grps[iden[m]]])
+    }) )
   }
 
   ### parallel chains ### ----
@@ -207,7 +223,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
     ch = chains, .packages = c("magrittr", "tidyr", "dplyr")
     ) %dorng% {
 
-    p_out <- iden_out <- theta_out <- list()
+    p_out <- iden_out <- theta_out0 <- list()
 
     ## gibbs loop ##
     for (rep in seq(nreps + nadapt)) {
@@ -241,10 +257,21 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
       #     }) %>% t()
       # }
 
+      # if (family == "ichthy") {
+      #   theta <- apply(rowsum(table(iden, ich), grps), 1,
+      #                  function(i) rbeta(1, i[2] + 1, i[1] + 1))
+      #   g <- sapply(ich, function(i) theta^i * (1 - theta)^(1 - i)) %>% t()
+      #   iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
+      # }
       if (family == "ichthy") {
-        theta <- apply(rowsum(table(iden, ich), grps), 1,
-                       function(i) rbeta(1, i[2] + 1, i[1] + 1))
-        g <- sapply(ich, function(i) theta^i * (1 - theta)^(1 - i)) %>% t()
+        ich_tbl <- apply(table(iden, ich, stra), 3,
+                         function(tbl_s) rowsum(tbl_s, grps),
+                         simplify = FALSE)
+        theta <- lapply(ich_tbl, function(ic) {
+          apply(ic, 1, function(i) rbeta(1, i[2] + 1, i[1] + 1))
+        })
+        g <- sapply(seq.int(length(ich)),
+                    function(i) theta[[stra[i]]]^ich[i] * (1 - theta[[stra[i]]])^(1 - ich[i])) %>% t()
         iso <- apply(g, 1, function(gm) gm[grps]) %>% t()
       }
 
@@ -256,8 +283,9 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
       if (family == "ichthy") {
         ich[na_ic] <- unlist( lapply(na_ic, function(m) {
-          rbinom(1, 1, theta[grps[iden[m]]])
-        }))
+          # rbinom(1, 1, theta[grps[iden[m]]])
+          rbinom(1, 1, theta[[stra[m]]][grps[iden[m]]])
+        }) )
       }
 
       # record output based on keep or not keep burn-ins
@@ -267,7 +295,7 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
           it <- (rep - nadapt - n_burn) / thin
           p_out[[it]] <- c(p, it, ch)
 
-          if (family == "ichthy") theta_out[[it]] <- theta
+          if (family == "ichthy") theta_out0[[it]] <- theta
 
           iden_out[[it]] <- iden
 
@@ -277,14 +305,35 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
     } # end gibbs loop
 
     if (family == "ichthy") {
-      out_items <- list(p_out, iden_out, theta_out)
-    } else out_items <- list(p_out, iden_out)
+      theta_out <-
+        lapply(seq.int(max(stra)), function(s) {
+          lapply(theta_out0, function(i) i[s])
+        })
 
-    lapply(out_items, function(oi) {
-      sapply(oi, rbind) %>%
-        t() %>%
-        dplyr::as_tibble()
-    })
+      out_items <-
+        list(
+          sapply(p_out, rbind) %>%
+            t() %>%
+            dplyr::as_tibble(),
+          sapply(iden_out, rbind) %>%
+            t() %>%
+            dplyr::as_tibble(),
+          lapply(theta_out, function(t1_out) {
+            sapply(t1_out, function(t2_out) {
+              sapply(t2_out, rbind)
+            }) %>% t()
+          })
+        )
+
+    } else {
+      out_items <- list(p_out, iden_out)
+
+      lapply(out_items, function(oi) {
+        sapply(oi, rbind) %>%
+          t() %>%
+          dplyr::as_tibble()
+      })
+    }
 
   } # end parallel chains
 
@@ -349,51 +398,99 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
 
   #### ichthyphonus ----
   if (family == "ichthy") {
-    out_list3 <- lapply(out_list, function(ol) ol[[3]])
+    out_list3 <- theta_combo <- mc_theta <- summ_theta <- list()
+    for (s in seq.int(max(stra))) {
+      out_list3[[s]] <- lapply(out_list, function(ol) ol[[3]][[s]])
 
-    theta_combo <-
-      lapply(out_list3,
-             function(ol) {
-               colnames(ol) <- grp_names
-               return(as.data.frame(ol))
-             })
+      theta_combo[[s]] <-
+        lapply(out_list3[[s]],
+               function(ol) {
+                 colnames(ol) <- grp_names
+                 return(as.data.frame(ol))
+               })
 
-    mc_theta <- coda::as.mcmc.list(
-      lapply(theta_combo,
-             function(rlist) coda::mcmc(rlist[keep_list,])))
+      mc_theta[[s]] <- coda::as.mcmc.list(
+        lapply(theta_combo[[s]],
+               function(rlist) coda::mcmc(rlist[keep_list,])))
 
-    summ_theta <-
-      lapply(theta_combo, function(rlist) rlist[keep_list,]) %>%
-      dplyr::bind_rows() %>%
-      tidyr::pivot_longer(cols = 1:ncol(.), names_to = "group") %>%
-      dplyr::group_by(group) %>%
-      dplyr::summarise(
-        mean = mean(value),
-        median = stats::median(value),
-        sd = stats::sd(value),
-        ci.05 = stats::quantile(value, 0.05),
-        ci.95 = stats::quantile(value, 0.95),
-        .groups = "drop"
-      ) %>%
-      dplyr::mutate(
-        GR = {if (nchains > 1) {
-          coda::gelman.diag(mc_theta,
-                            transform = FALSE,
-                            autoburnin = FALSE,
-                            multivariate = FALSE)$psrf[, "Point est."]
-        } else {NA}},
-        mpsrf = {if (nchains > 1) {
-          my.gelman.diag(mc_theta,
-                         # transform = FALSE,
-                         # autoburnin = FALSE,
-                         multivariate = TRUE)$mpsrf
-        } else {NA}},
-        n_eff = coda::effectiveSize(mc_theta)
-      ) %>%
-      dplyr::mutate(grp_fac = factor(group, levels = grp_names)) %>%
-      dplyr::arrange(grp_fac) %>%
-      dplyr::select(-grp_fac)
+      summ_theta[[s]] <-
+        lapply(theta_combo[[s]], function(rlist) rlist[keep_list,]) %>%
+        dplyr::bind_rows() %>%
+        tidyr::pivot_longer(cols = 1:ncol(.), names_to = "group") %>%
+        dplyr::group_by(group) %>%
+        dplyr::summarise(
+          mean = mean(value),
+          median = stats::median(value),
+          sd = stats::sd(value),
+          ci.05 = stats::quantile(value, 0.05),
+          ci.95 = stats::quantile(value, 0.95),
+          .groups = "drop"
+        ) %>%
+        dplyr::mutate(
+          GR = {if (nchains > 1) {
+            coda::gelman.diag(mc_theta[[s]],
+                              transform = FALSE,
+                              autoburnin = FALSE,
+                              multivariate = FALSE)$psrf[, "Point est."]
+          } else {NA}},
+          mpsrf = {if (nchains > 1) {
+            my.gelman.diag(mc_theta[[s]],
+                           # transform = FALSE,
+                           # autoburnin = FALSE,
+                           multivariate = TRUE)$mpsrf
+          } else {NA}},
+          n_eff = coda::effectiveSize(mc_theta[[s]])
+        ) %>%
+        dplyr::mutate(grp_fac = factor(group, levels = grp_names)) %>%
+        dplyr::arrange(grp_fac) %>%
+        dplyr::select(-grp_fac)
+    }
   }
+  #   out_list3 <- lapply(out_list, function(ol) ol[[3]])
+  #
+  #   theta_combo <-
+  #     lapply(out_list3,
+  #            function(ol) {
+  #              colnames(ol) <- grp_names
+  #              return(as.data.frame(ol))
+  #            })
+  #
+  #   mc_theta <- coda::as.mcmc.list(
+  #     lapply(theta_combo,
+  #            function(rlist) coda::mcmc(rlist[keep_list,])))
+  #
+  #   summ_theta <-
+  #     lapply(theta_combo, function(rlist) rlist[keep_list,]) %>%
+  #     dplyr::bind_rows() %>%
+  #     tidyr::pivot_longer(cols = 1:ncol(.), names_to = "group") %>%
+  #     dplyr::group_by(group) %>%
+  #     dplyr::summarise(
+  #       mean = mean(value),
+  #       median = stats::median(value),
+  #       sd = stats::sd(value),
+  #       ci.05 = stats::quantile(value, 0.05),
+  #       ci.95 = stats::quantile(value, 0.95),
+  #       .groups = "drop"
+  #     ) %>%
+  #     dplyr::mutate(
+  #       GR = {if (nchains > 1) {
+  #         coda::gelman.diag(mc_theta,
+  #                           transform = FALSE,
+  #                           autoburnin = FALSE,
+  #                           multivariate = FALSE)$psrf[, "Point est."]
+  #       } else {NA}},
+  #       mpsrf = {if (nchains > 1) {
+  #         my.gelman.diag(mc_theta,
+  #                        # transform = FALSE,
+  #                        # autoburnin = FALSE,
+  #                        multivariate = TRUE)$mpsrf
+  #       } else {NA}},
+  #       n_eff = coda::effectiveSize(mc_theta)
+  #     ) %>%
+  #     dplyr::mutate(grp_fac = factor(group, levels = grp_names)) %>%
+  #     dplyr::arrange(grp_fac) %>%
+  #     dplyr::select(-grp_fac)
+  # }
 
   # combine output
   out <- list()
@@ -416,14 +513,25 @@ enigma_mdl <- function(dat_in, nreps, nburn, thin, nchains, nadapt = 0, keep_bur
   if (family == "ichthy") {
     out$summ_ich <- summ_theta
 
-    out$trace_ich <- theta_combo %>%
-      dplyr::bind_rows() %>%
-      dplyr::mutate(
-        itr = rep(1:((nreps - nburn * isFALSE(keep_burn)) / thin),
-                  times = nchains),
-        chain = rep(1:nchains,
-                    each = (nreps - nburn * isFALSE(keep_burn)) / thin)
-      )
+    # out$trace_ich <- theta_combo %>%
+    #   dplyr::bind_rows() %>%
+    #   dplyr::mutate(
+    #     itr = rep(1:((nreps - nburn * isFALSE(keep_burn)) / thin),
+    #               times = nchains),
+    #     chain = rep(1:nchains,
+    #                 each = (nreps - nburn * isFALSE(keep_burn)) / thin)
+    #   )
+    out$trace_ich <- list()
+    for(s in seq.int(max(stra))) {
+      out$trace_ich[[s]] <- theta_combo[[s]] %>%
+        dplyr::bind_rows() %>%
+        dplyr::mutate(
+          itr = rep(1:((nreps - nburn * isFALSE(keep_burn)) / thin),
+                    times = nchains),
+          chain = rep(1:nchains,
+                      each = (nreps - nburn * isFALSE(keep_burn)) / thin)
+        )
+    }
   }
 
   print(Sys.time() - run_time)
